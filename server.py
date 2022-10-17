@@ -11,6 +11,12 @@ from network import recv_no_throw
 
 class Server:
     def __del__(self):
+        """make sure to clean up all open connections, and dispose of the queues"""
+        if self.connections:
+            for c in self.connections[:]:
+                # notify user that server is closing connection
+                c.sendall('server close\n'.encode())
+                self._close_and_remove_socket(c)
         if self.server_socket:
             self.server_socket.close()
 
@@ -47,7 +53,7 @@ class Server:
         self.server_socket.setblocking(False)
         self.server_socket.listen()
 
-        # note: all message queues need to use socket.getsockname() as the key
+        # this queue is for the server's listen socket
         self.message_queues = {self.server_socket.getsockname(): Queue()}
         print(f'Server({self.host}:{self.port})')
 
@@ -68,9 +74,9 @@ class Server:
         print(f'incoming connection {client_address}, conns={len(self.connections)}')
         new_connection.sendall('ACK: connection accepted by server\n'.encode())
 
-        sockname = new_connection.getpeername()
-        self.message_queues[sockname] = Queue()
-        self.message_queues[sockname].put('TEST MESSAGE\n')
+        peer = new_connection.getpeername()
+        self.message_queues[peer] = Queue()
+        self.message_queues[peer].put('RESPONSE FROM SERVER\n')
 
     def handle_socket_read(self, read_socket):
         if read_socket == sys.stdin:
@@ -88,34 +94,41 @@ class Server:
         # data incoming.  It should go ot a handle_data fn
         self.handle_receive_data(read_socket)
 
-    def handle_receive_data(self, socket):
-        peer = socket.getpeername()
+    def handle_receive_data(self, data_socket):
+        peer = data_socket.getpeername()
         print(f'read: {peer}')
-        data = recv_no_throw(socket)
+        data = recv_no_throw(data_socket)
         print(f'server received: "{data}"')
         if not data:
             return
 
         line = data.decode('utf-8').strip()
         if line.endswith('close'):
-            if socket in self.connections[:]:
-                socket.sendall('closing connection\n'.encode())
-                self._close_and_remove_socket(socket)
+            if data_socket in self.connections[:]:
+                data_socket.sendall('closing connection\n'.encode())
+                self._close_and_remove_socket(data_socket)
         if peer in self.message_queues:
             self.message_queues[peer].put(f'performed command: {line}\n')
 
-    def handle_socket_write(self, outgoing):
-        if not outgoing or outgoing.fileno() == -1:
+    def handle_socket_write(self, write_socket):
+        # socket is None
+        if not write_socket:
             return
+        # socket is closed, but not destroyed
+        if write_socket.fileno() == -1:
+            return
+
+        peer = write_socket.getpeername()
+
         try:
-            # print(f'write: {peer}')
-            next_message = self.message_queues[outgoing.getpeername()].get_nowait()
+            next_message = self.message_queues[peer].get_nowait()
         except queue.Empty:
             # we don't want to automatically drop a connection if the queue is empty
+            # we anticipate all sockets to notify the server when they intend to close
             pass
         else:
-            outgoing.sendall(next_message.encode())
-            self.message_queues[outgoing.getpeername()].task_done()
+            write_socket.sendall(next_message.encode())
+            self.message_queues[peer].task_done()
 
     def handle_socket_exception(self, exception_socket):
         print(f'except: ({exception_socket.getsockname()})')
@@ -145,7 +158,7 @@ class Server:
                         print(f'server socket: {self.server_socket.getsockname()}')
                         continue
                     else:
-                        print(f'peer socket: {connection.getsockname()}')
+                        print(f'peer socket: {connection.getpeername()}')
             _print_line('-', 80)
 
         def _print_server_status():
@@ -181,8 +194,6 @@ class Server:
             _print_line('\n', 50)
 
     # --------------------------------------------------------------------
-
-    # --------------------------------------------------------------------
     def run(self):
         print(f'beginning server loop')
         while not self.break_loop:
@@ -190,17 +201,15 @@ class Server:
             possible_reads = self.connections[:]
             # AND, we'll read from the server's listen socket, for new connections
             possible_reads.insert(0, self.server_socket)
+            # AND, we'll support some command line interactions
             possible_reads.insert(1, sys.stdin)
 
             # we'll write to every socket that's connected to us,
             possible_writes = self.connections[:]
-
-            # and maybe we'll do exceptions someday
+            # and handle exceptions for them
             possible_exceptions = self.connections[:]
 
-            timeout_s = 0.004  # ms
-            # _read, _write, _except = select.select(
-            #     possible_reads, possible_writes, possible_exceptions, timeout_s)
+            timeout_s = 0.004  # 4 ms
             _read, _write, _except = select.select(
                 possible_reads,
                 possible_writes,
