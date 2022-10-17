@@ -114,13 +114,22 @@ class ServerTests(unittest.TestCase):
     #     s.handle_add_new_connection(None)
 
     # fn handle_socket_read ----------------------------------------------
+        #
+
+    # fn handle_socket_data ----------------------------------------------
+        # gets socket
+        # reads data from socket
+        # routes data to it's specific processing fn
+
 
     # fn handle_socket_write ---------------------------------------------
+        # attempts to get message from queue
+        # calls send() and sends message
 
     # fn handle_exception ------------------------------------------------
-
-
-
+        # remove socket from connections
+        # close socket
+        # remove socket from message queue
 
 
 if __name__ == '__main__':
