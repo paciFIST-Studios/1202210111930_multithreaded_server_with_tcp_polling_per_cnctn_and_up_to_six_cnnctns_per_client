@@ -1,3 +1,4 @@
+import ctypes
 import unittest
 import socket
 
@@ -12,7 +13,9 @@ class ServerTests(unittest.TestCase):
         self.default_server = Server(HOST, PORT)
 
     def tearDown(self):
-        pass
+        if self.default_server.server_socket:
+            self.default_server.server_socket.close()
+        self.default_server = None
 
     # init and util ------------------------------------------------------
 
@@ -56,6 +59,37 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(s.host, HOST)
         self.assertEqual(s.port, PORT)
 
+    def test__fn_set_bit__sets_correct_bit_on(self):
+        s = self.default_server
+        for i in range(32):
+            bit = s.set_bit(0, i, True)
+            self.assertEqual(bit, 2**i)
+
+    def test__fn_set_bit__sets_correct_bit_off(self):
+        s = self.default_server
+        for i in range(32):
+            bit = s.set_bit(2**i-1, i, False)
+            self.assertEqual(bit, 2**i-1)
+
+    def test__fn_bit_is_set__returns_correct_value(self):
+        s = self.default_server
+        for i in range(32):
+            self.assertTrue(s.bit_is_set(2**i, i))
+
+    def test__fn_bit_is_set__does_not_accept_negative_idx_value(self):
+        s = self.default_server
+        # a -1 gets turned into idx=0
+        self.assertTrue(s.bit_is_set(2**0, -1))
+        self.assertFalse(s.bit_is_set(2**1, -1))
+
+    def test__fn_get_header__returns_correct_header_for_parameters(self):
+        s = self.default_server
+        for i in range(8):
+            header = s.get_header(2**i, 2**i, 2**i)
+            self.assertEqual(header.b.type, 2**i)
+            self.assertEqual(header.b.flags, 2**i)
+            self.assertEqual(header.b.data, 2**i)
+
     def test__fn_get_addr__returns_add_tuple(self):
         s = self.default_server
         res = s.get_addr()
@@ -81,10 +115,13 @@ class ServerTests(unittest.TestCase):
     #
     #   I think we can do this in C
 
-    def test__fn_prepare__appends_server_socket_to_connections_list(self):
-        s = self.default_server
-        s.prepare()
-        self.assertTrue(s.server_socket in s.connections)
+    # 120221018 ELLIE:  This functionality has been removed.  Now, server_socket is just
+    #                   its own variable, and we do a specific thing to ensure we
+    #                   poll it correctly.  self.connections, is ONLY peer connections
+    # def test__fn_prepare__appends_server_socket_to_connections_list(self):
+    #     s = self.default_server
+    #     s.prepare()
+    #     self.assertTrue(s.server_socket in s.connections)
 
     def test__fn_prepare__instantiates_message_queue(self):
         s = self.default_server
@@ -94,7 +131,7 @@ class ServerTests(unittest.TestCase):
     def test__fn_prepare__server_socket_exists_in_message_queue(self):
         s = self.default_server
         s.prepare()
-        self.assertTrue(s.server_socket in s.message_queues)
+        self.assertTrue(s.server_socket.getsockname() in s.message_queues)
 
     # fn start -----------------------------------------------------------_
 
