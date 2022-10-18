@@ -10,16 +10,6 @@ from network import recv_no_throw
 
 
 class Server:
-    def __del__(self):
-        """make sure to clean up all open connections, and dispose of the queues"""
-        if self.connections:
-            for c in self.connections[:]:
-                # notify user that server is closing connection
-                c.sendall('server close\n'.encode())
-                self._close_and_remove_socket(c)
-        if self.server_socket:
-            self.server_socket.close()
-
     def __init__(self, host=None, port=None):
         self.server_socket = None
         self.socket_is_bound = False
@@ -173,7 +163,7 @@ class Server:
         def _print_queues(queues):
             _print_line('-', 80)
             for q in queues:
-                print(f'queue:  {q}, {list(q)}')
+                print(f'queue:  {q}')
             _print_line('-', 80)
 
         line = sys.stdin.readline().strip()
@@ -222,6 +212,15 @@ class Server:
                 self.handle_socket_write(writable_socket)
             for exception in _except:
                 self.handle_socket_exception(exception)
+
+        # after loop
+        if self.connections:
+            for c in self.connections[:]:
+                # notify user that server is closing connection
+                c.sendall('server close\n'.encode())
+                self._close_and_remove_socket(c)
+        if self.server_socket:
+            self.server_socket.close()
 
 
 def run():
