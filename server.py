@@ -55,6 +55,67 @@ class Server:
         if peer in self.message_queues:
             del self.message_queues[peer]
 
+    # local server commands ----------------------------------------------
+    # WINDOWS NOT SUPPORTED
+    def _handle_local_server_command(self):
+        def _print_line(count, char):
+            print(char * count)
+
+        def _print_help():
+            _print_line('-', 80)
+            print('server commands:')
+            print('\thelp\t-\tdisplays this message')
+            print('\tclose\t-\tcloses all connections and shuts down server')
+            print('\tusers\t-\tprints a list of the connected users')
+            print('\tqueues\t-\tprints out existing queue data for all connections')
+            _print_line('-', 80)
+
+        def _print_connections(connections):
+            _print_line('-', 80)
+            if not connections:
+                print('\tNo Connections')
+            else:
+                print('connections:')
+                for connection in connections:
+                    if connection == self.server_socket:
+                        print(f'server socket: {self.server_socket.getsockname()}')
+                        continue
+                    else:
+                        print(f'peer socket: {connection.getpeername()}')
+            _print_line('-', 80)
+
+        def _print_server_status():
+            _print_line('-', 80)
+            print('server status:')
+            print(f'\tpython\t-\t{sys.version}')
+            print(f'\tthread\t-\t{sys.thread_info}')
+            print(f'\tplatform -\t{sys.platform}')
+            print(f'\tallocated -\t{sys.getallocatedblocks()} blocks')
+            _print_line('-', 80)
+
+        def _print_queues(queues):
+            _print_line('-', 80)
+            for q in queues:
+                print(f'queue:  {q}')
+            _print_line('-', 80)
+
+        line = sys.stdin.readline().strip()
+        print(f'local command: "{line}"')
+
+        if line.startswith('help'):
+            _print_help()
+        elif line.startswith('close'):
+            print('closing server')
+            self.break_loop = True
+        elif line.startswith('users'):
+            _print_connections(self.connections[:])
+        elif line.startswith('status'):
+            _print_server_status()
+        elif line.startswith('queues'):
+            _print_queues(self.message_queues)
+        elif line.startswith('clear'):
+            _print_line('\n', 50)
+
     # handlers -----------------------------------------------------------
     def handle_add_new_connection(self, listen_socket):
         new_connection, client_address = listen_socket.accept()
@@ -124,65 +185,6 @@ class Server:
         print(f'except: ({exception_socket.getsockname()})')
         self._close_and_remove_socket(exception_socket)
 
-    def _handle_local_server_command(self):
-        def _print_line(count, char):
-            print(char * count)
-
-        def _print_help():
-            _print_line('-', 80)
-            print('server commands:')
-            print('\thelp\t-\tdisplays this message')
-            print('\tclose\t-\tcloses all connections and shuts down server')
-            print('\tusers\t-\tprints a list of the connected users')
-            print('\tqueues\t-\tprints out existing queue data for all connections')
-            _print_line('-', 80)
-
-        def _print_connections(connections):
-            _print_line('-', 80)
-            if not connections:
-                print('\tNo Connections')
-            else:
-                print('connections:')
-                for connection in connections:
-                    if connection == self.server_socket:
-                        print(f'server socket: {self.server_socket.getsockname()}')
-                        continue
-                    else:
-                        print(f'peer socket: {connection.getpeername()}')
-            _print_line('-', 80)
-
-        def _print_server_status():
-            _print_line('-', 80)
-            print('server status:')
-            print(f'\tpython\t-\t{sys.version}')
-            print(f'\tthread\t-\t{sys.thread_info}')
-            print(f'\tplatform -\t{sys.platform}')
-            print(f'\tallocated -\t{sys.getallocatedblocks()} blocks')
-            _print_line('-', 80)
-
-        def _print_queues(queues):
-            _print_line('-', 80)
-            for q in queues:
-                print(f'queue:  {q}')
-            _print_line('-', 80)
-
-        line = sys.stdin.readline().strip()
-        print(f'local command: "{line}"')
-
-        if line.startswith('help'):
-            _print_help()
-        elif line.startswith('close'):
-            print('closing server')
-            self.break_loop = True
-        elif line.startswith('users'):
-            _print_connections(self.connections[:])
-        elif line.startswith('status'):
-            _print_server_status()
-        elif line.startswith('queues'):
-            _print_queues(self.message_queues)
-        elif line.startswith('clear'):
-            _print_line('\n', 50)
-
     # --------------------------------------------------------------------
     def run(self):
         print(f'beginning server loop')
@@ -191,6 +193,7 @@ class Server:
             possible_reads = self.connections[:]
             # AND, we'll read from the server's listen socket, for new connections
             possible_reads.insert(0, self.server_socket)
+            # NOT SUPPORTED ON WINDOWS
             # AND, we'll support some command line interactions
             possible_reads.insert(1, sys.stdin)
 
