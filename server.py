@@ -70,7 +70,7 @@ class ConnectionGroup:
     def send(self, message):
         if not self.connections:
             return
-        self.connections[self._last_used_idx].sendall(message)
+        self.connections[self._last_used_idx].safe_send(message)
         # advance te index to the next message, w/ wrap
         self._last_used_idx += 1
         self._last_used_idx = self._last_used_idx % len(self.connections)
@@ -352,7 +352,7 @@ class Server:
         if self.connections:
             for c in self.connections[:]:
                 # notify user that server is closing connection
-                c.sendall('server close\n'.encode())
+                self.safe_send(c, 'server close\n'.encode())
                 self._close_and_remove_socket(c)
         if self.server_socket:
             self.server_socket.close()
